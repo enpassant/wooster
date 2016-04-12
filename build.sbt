@@ -1,6 +1,8 @@
 name := """wooster"""
 
-version := "1.0"
+version := "1.0-SNAPSHOT"
+
+organization := "com.github.enpassant"
 
 scalaVersion := "2.11.8"
 
