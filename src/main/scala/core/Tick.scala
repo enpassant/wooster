@@ -20,15 +20,18 @@ class TickActor(val config: Config) extends Actor with ActorLogging  with Servic
   implicit val timeout: Timeout = Timeout(15.seconds)
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  type RegisterFn = () => Future[HttpResponse]
+
   val serviceUri = s"http://${config.router.get}/services"
-  val microService = MicroService(UUID.randomUUID.toString, "",
-    config.host, config.port, config.mode)
-  val entity = Marshal(microService).to[RequestEntity]
 
   implicit val system = context.system
   implicit val materializer = ActorMaterializer()
 
-  def register() = {
+  def register(
+    serviceUri: String,
+    microService: MicroService,
+    entity: Future[RequestEntity]): RegisterFn = () =>
+  {
     val response: Future[HttpResponse] = entity.flatMap { e =>
       Http().singleRequest(HttpRequest(method = PUT,
         uri = serviceUri + "/" + microService.uuid,
@@ -37,26 +40,32 @@ class TickActor(val config: Config) extends Actor with ActorLogging  with Servic
       response.map { r =>
         log.info(s"Service ${microService.uuid} has joined to ${config.router.get}")
       }
-      schedule
+      response
   }
 
-  def schedule() = {
+  def schedule(registerFn: RegisterFn) = {
     val c = context.system.scheduler.scheduleOnce(60 seconds, self, Tick)
-    context.become(process(c))
+    context.become(process(registerFn, c))
   }
 
   def receive = {
-    case Tick =>
-      register
+    case microService: MicroService =>
+      val entity = Marshal(microService).to[RequestEntity]
+      val registerFn = register(serviceUri, microService, entity)
+      registerFn()
+      schedule(registerFn)
+
+    case _ =>
   }
 
-  def process(cancellable: Cancellable): Receive = {
+  def process(registerFn: RegisterFn, cancellable: Cancellable): Receive = {
     case Tick =>
-      register
+      registerFn()
+      schedule(registerFn)
 
     case Restart =>
       cancellable.cancel
-      schedule
+      schedule(registerFn)
   }
 }
 
