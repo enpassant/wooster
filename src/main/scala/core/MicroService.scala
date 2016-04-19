@@ -1,8 +1,6 @@
 package core
 
 import java.util.UUID
-import org.json4s.jackson.Serialization.{ read, writePretty }
-import org.json4s.{ DefaultFormats, Formats }
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.unmarshalling._
